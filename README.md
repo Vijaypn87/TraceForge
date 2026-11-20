@@ -119,8 +119,3 @@ npm run typecheck
 ```
 
 Coverage includes request canonicalization, the journal, record and replay, SSE streaming (including truncation and the real Anthropic SDK consuming a replayed stream), concurrent replay races, fork and hybrid replay, diff, and the CLI.
-
-## ◆ Contributors
-
-- **Vijay PN** — Project development and maintenance.
-- **Claude (Anthropic)** — AI-assisted coding, documentation and development support.
