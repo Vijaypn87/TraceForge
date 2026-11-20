@@ -6,7 +6,6 @@
 
 Deterministic record/replay debugging for LLM agents.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-ff2438?style=for-the-badge&labelColor=080808)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-69%20passing-ff2438?style=for-the-badge&labelColor=080808)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-ff2438?style=for-the-badge&labelColor=080808&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-ff2438?style=for-the-badge&labelColor=080808&logo=typescript&logoColor=white)](./tsconfig.json)
@@ -121,8 +120,7 @@ npm run typecheck
 
 Coverage includes request canonicalization, the journal, record and replay, SSE streaming (including truncation and the real Anthropic SDK consuming a replayed stream), concurrent replay races, fork and hybrid replay, diff, and the CLI.
 
-## ◆ License & acknowledgements
+## ◆ Contributors
 
-Released under the [MIT License](./LICENSE).
-
-TraceForge is adapted from [**Rewind**](https://github.com/mihhhir08/rewind) by **Mihir Sinh Chavda**. The record/replay engine, journal, fork and diff logic, CLI and test suite originate in that project, and its MIT license and copyright notice are preserved in [LICENSE](./LICENSE). TraceForge's changes are the rename to `traceforge` (package, CLI command, `TRACEFORGE_*` environment variables, journal file extension), the website, and this documentation.
+- **Vijay PN** — Project development and maintenance.
+- **Claude (Anthropic)** — AI-assisted coding, documentation and development support.

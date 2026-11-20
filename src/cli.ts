@@ -11,7 +11,7 @@ import { Journal, type JournalEvent, type RunSummary } from "./journal.js";
 const program = new Command();
 program
   .name("traceforge")
-  .description("Deterministic record/replay debugger for LLM agents")
+  .description("TraceForge: deterministic record/replay debugging for LLM agents. Replay. Debug. Reimagine.")
   .enablePositionalOptions();
 
 const DEFAULT_JOURNAL = "default.traceforge.db";

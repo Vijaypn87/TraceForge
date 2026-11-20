@@ -1,12 +1,17 @@
 {
   "name": "traceforge",
   "version": "0.0.1",
-  "description": "Deterministic record/replay debugger for LLM agents. Record a run once; replay it byte-exact, offline, free, forever.",
+  "description": "TraceForge: deterministic record/replay debugging for LLM agents. Replay. Debug. Reimagine.",
+  "homepage": "https://traceforgeai.vercel.app/",
+  "bugs": {
+    "url": "https://github.com/Vijaypn87/TraceForge/issues"
+  },
+  "keywords": ["llm", "agents", "debugging", "record", "replay", "deterministic", "anthropic", "sqlite"],
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mihhhir08/rewind.git"
+    "url": "git+https://github.com/Vijaypn87/TraceForge.git"
   },
   "engines": {
     "node": ">=20"
