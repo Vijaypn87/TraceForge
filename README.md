@@ -1,22 +1,89 @@
+<div align="center">
+
 # TraceForge
 
-**Deterministic record/replay debugging for LLM agents.** Record an agent run once; replay it byte-exact, offline, free, forever. Fork any step to compute the future that *would have* happened.
+**Replay. Debug. Reimagine.**
 
-> **Attribution:** TraceForge is a rebrand of [Rewind](https://github.com/mihhhir08/rewind) by Mihir Sinh Chavda (MIT). The package, CLI and environment variables were renamed from `rewind` to `traceforge`.
+Deterministic record/replay debugging for LLM agents.
 
-> `rr` for agents. Observability tools show you what happened — TraceForge lets you run it again.
+[![License: MIT](https://img.shields.io/badge/license-MIT-ff2438?style=for-the-badge&labelColor=080808)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-69%20passing-ff2438?style=for-the-badge&labelColor=080808)](#-testing)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-ff2438?style=for-the-badge&labelColor=080808&logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-ff2438?style=for-the-badge&labelColor=080808&logo=typescript&logoColor=white)](./tsconfig.json)
 
-## Why
+**Live Demo:** _coming soon_ &nbsp;·&nbsp; [**GitHub**](https://github.com/Vijaypn87/TraceForge) &nbsp;·&nbsp; [**Quick start**](#-quick-start)
 
-Your agent crashed on step 47 of 50. Reproducing that today means re-running 46 steps, paying for every token, and hoping the model takes the same path (it won't). With TraceForge:
+</div>
 
+---
+
+## ◆ About
+
+Your agent crashed on step 47 of 50. Reproducing it normally means re-running 46 steps, paying for every token, and hoping the model takes the same path.
+
+TraceForge records an agent run once, then replays it **byte-exact, offline, with no API key**. Fork any step to see what *would* have happened, and diff the two timelines.
+
+## ◆ Workflow
+
+```console
+$ traceforge record -- npx tsx demo/agent.ts              # RECORD  run live, journal everything
+✗ TypeError: Cannot read properties of undefined          #         crash at the last step
+
+$ traceforge replay <run> -- npx tsx demo/agent.ts        # REPLAY  same crash, offline, $0
+
+$ traceforge fork <run> --at 4 --text '{"total_usd": 0}'  # FORK    rewrite step 4's response
+$ traceforge replay <fork> -- npx tsx demo/agent.ts       #         the agent lives the edited history
+
+$ traceforge diff <run> <fork>                            # DIFF    where the futures diverge
+first divergence at seq 4
 ```
-traceforge replay <run> -- node agent.js    # exact reproduction, zero network, $0
-traceforge fork <run> --at 46 --response …  # rewrite step 46, compute the alternate future
-traceforge diff <run> <fork>                # see exactly where and how the futures diverge
+
+## ◆ Key features
+
+| ▶ **Deterministic replay** | ⑂ **Counterfactual forking** | ≠ **Execution diff** |
+| :-- | :-- | :-- |
+| Responses are served from a local SQLite journal, with exact SSE chunk boundaries. No network, no tokens. | Rewrite any recorded response with `--text`, `--response` or `--response-file`, then replay the alternate run. | Compare two runs event by event and jump to the first divergence. |
+
+| ∞ **Closed under replay** | ⇄ **Concurrency-safe** | # **Canonical fingerprints** |
+| :-- | :-- | :-- |
+| `--policy hybrid` serves history, goes live after the edit, and re-journals into a new run that replays offline. | Identical racing requests are paired by recorded arrival order, so each caller gets its own response. | Requests are canonicalized and volatile headers stripped, so a miss fails loudly instead of returning a wrong hit. |
+
+> **Determinism guarantee:** replay is deterministic at the SDK I/O boundary. If your agent's only non-determinism flows through the wrapped client and `session.io()`, recorded values replay byte-exact. OS-level and instruction-level non-determinism are out of scope.
+
+## ◆ Architecture
+
+```mermaid
+flowchart LR
+    A["Your agent<br/>Anthropic SDK + session.io()"] --> B["TraceForge session<br/>record / replay fetch"]
+    B -->|record| C[("SQLite journal<br/>content-addressed")]
+    C -->|replay| B
+    B -.->|live, record only| D["LLM API"]
+    C --> E["CLI<br/>runs · show · step · fork · diff"]
 ```
 
-## Quick start
+TraceForge injects a `fetch` at the SDK transport boundary: no proxy, no certificate tricks, no global patching. The reasoning behind each design choice is in [DECISIONS.md](./DECISIONS.md).
+
+## ◆ Tech stack
+
+![TypeScript](https://img.shields.io/badge/TypeScript-080808?style=flat-square&logo=typescript&logoColor=ff2438)
+![Node.js](https://img.shields.io/badge/Node.js-080808?style=flat-square&logo=node.js&logoColor=ff2438)
+![SQLite](https://img.shields.io/badge/SQLite-080808?style=flat-square&logo=sqlite&logoColor=ff2438)
+![better-sqlite3](https://img.shields.io/badge/better--sqlite3-080808?style=flat-square)
+![Commander](https://img.shields.io/badge/Commander.js-080808?style=flat-square)
+![Vitest](https://img.shields.io/badge/Vitest-080808?style=flat-square&logo=vitest&logoColor=ff2438)
+![Anthropic SDK](https://img.shields.io/badge/Anthropic%20SDK-080808?style=flat-square)
+
+## ◆ Quick start
+
+```bash
+git clone https://github.com/Vijaypn87/TraceForge.git
+cd TraceForge
+npm install
+npm run build
+npm link            # makes the `traceforge` command available
+```
+
+Wire your agent (two lines), then drive it from the CLI:
 
 ```ts
 import Anthropic from "@anthropic-ai/sdk";
@@ -24,75 +91,29 @@ import { fromEnv } from "traceforge";
 
 const session = fromEnv();
 const client = new Anthropic({ fetch: session.fetch });
+// wrap tools and other non-determinism: await session.io("fx_rate", fetchRate)
 ```
-
-That's the whole integration. Wrap tool calls and other non-determinism in `session.io("name", fn)`, then drive everything from the CLI:
 
 ```bash
-traceforge record -- node agent.js       # run live, journal everything
-traceforge runs                          # list recorded runs
-traceforge show <run>                    # event timeline: every LLM call, tool, io
-traceforge step <run>                    # walk the timeline interactively, event by event
-traceforge replay <run> -- node agent.js # re-run offline: recorded responses, no key needed
+traceforge record -- node agent.js          # run live, journal everything
+traceforge runs                             # list recorded runs
+traceforge show <run>                       # event timeline
+traceforge replay <run> -- node agent.js    # re-run offline
+traceforge fork <run> --at 4 --text '…'     # rewrite step 4
+traceforge diff <run> <fork>                # first divergence
 ```
 
-Unwired environments fall back to plain live recording — agent code never branches on mode.
+To `import … from "traceforge"` in another project, run `npm link traceforge` there. Options go before the run id; everything after `--` is passed to your command. The bundled expense-audit demo ([`demo/agent.ts`](./demo/agent.ts)) needs `ANTHROPIC_API_KEY` for the first recording only; everything after that is offline.
 
-## The demo
-
-[`demo/agent.ts`](./demo/agent.ts) is an expense-audit agent with a bug that only manifests at the **last** step — after three paid LLM calls:
+## ◆ Testing
 
 ```bash
-export ANTHROPIC_API_KEY=sk-...   # needed exactly once
-npx tsx src/cli.ts record -j demo.traceforge.db -- npx tsx demo/agent.ts   # 💥 crashes at the final step
+npm test            # 69 tests across 12 files, including real-SDK streaming and concurrency races
+npm run typecheck
 ```
 
-Everything after this is offline, instant, and free:
+## ◆ License & acknowledgements
 
-```bash
-npx tsx src/cli.ts runs -j demo.traceforge.db
-npx tsx src/cli.ts replay -j demo.traceforge.db <run> -- npx tsx demo/agent.ts  # 💥 same crash, $0
-# open demo/agent.ts, fix the marked one-line bug, then:
-npx tsx src/cli.ts replay -j demo.traceforge.db <run> -- npx tsx demo/agent.ts  # ✅ passes — fix verified offline
-```
+Released under the [MIT License](./LICENSE).
 
-(Options go before the run id — everything after it is passed through to your command untouched.)
-
-And the counterfactual — *what if the model had reported a different total?* — still offline, still $0:
-
-```bash
-npx tsx src/cli.ts fork <run> --at 4 --text '{"total_usd": 0, "flagged": []}' --label what-if -j demo.traceforge.db
-npx tsx src/cli.ts replay -j demo.traceforge.db <fork> -- npx tsx demo/agent.ts   # the agent lives the edited history
-npx tsx src/cli.ts diff <run> <fork> -j demo.traceforge.db                        # first divergence at seq 4
-```
-
-If the edit changes what the agent *asks next*, replay the fork with `--policy hybrid`: recorded history is served from the journal, the diverged future goes live once, and the result is a new run that itself replays offline. Runs are closed under replay.
-
-## How it works
-
-TraceForge injects a recording `fetch` at the SDK transport boundary (no proxy, no cert tricks, no global monkey-patching) and journals every non-deterministic input — LLM responses **including exact SSE chunk boundaries**, tool results, time, randomness — into a content-addressed SQLite journal. Replay serves the journal instead of the network. The real Anthropic SDK consumes replayed streams without knowing the difference.
-
-**Determinism guarantee (precise):** replay is deterministic at the SDK I/O boundary. If your agent's only non-determinism flows through the wrapped client and `io()`, replay reproduces recorded values byte-exact — including which racing caller got which response. TraceForge does not (and does not claim to) control instruction-level or OS-level non-determinism.
-
-## Why this is hard
-
-- **"Same request" has no obvious definition.** Bodies serialize with unstable key order; headers carry per-attempt noise (request ids, retry counters, auth). TraceForge canonicalizes and fingerprints requests, stripping a curated volatile-header blocklist — chosen over an allowlist because a fingerprint that fails loud (replay miss) is debuggable, and one that lies (wrong hit) is corruption.
-- **Concurrency breaks naive matching.** When identical requests race, journal order is completion order but callers need *their* response back. TraceForge records arrival order separately and pairs by it, keeping transcripts byte-exact under concurrency (verified across repeated replay iterations in tests).
-- **Streams are not bodies.** SDK parsers are sensitive to SSE chunk framing, so TraceForge records and replays the exact chunk boundaries — and when you *edit* a streamed response in a fork, it re-frames the new text into valid SSE events so the SDK can still consume it.
-- **Forking needs a closure property.** A forked run's future can't come from the recording (its context now contains the edit). Hybrid replay serves the journal until divergence, falls through live after it, and journals *everything* into a new run — so every run in the journal, original or forked, replays fully offline. Runs are closed under replay.
-
-## Design decisions
-
-Every architectural fork in the road, what was rejected, and why: [DECISIONS.md](./DECISIONS.md).
-
-## Development
-
-```bash
-npm install
-npm test        # 69 tests, incl. real-SDK stream integration and concurrency races
-npx tsc --noEmit
-```
-
-## License
-
-MIT. Copyright (c) 2026 Mihir Sinh Chavda, the original author of [Rewind](https://github.com/mihhhir08/rewind). See [LICENSE](./LICENSE).
+TraceForge is adapted from [**Rewind**](https://github.com/mihhhir08/rewind) by **Mihir Sinh Chavda**, which provides the original record/replay engine. The original MIT license and copyright notice are preserved in [LICENSE](./LICENSE).
