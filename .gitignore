@@ -1,0 +1,13 @@
+@"
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.traceforge.db
+coverage/
+.DS_Store
+"@ | Set-Content .gitignore

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraceForge — Replay. Debug. Reimagine.</title>
+<meta name="description" content="TraceForge: deterministic record/replay debugging for LLM agents. Record once, replay offline, fork any step, and diff the outcomes.">
+<meta name="theme-color" content="#080808">
+<meta property="og:type" content="website">
+<meta property="og:title" content="TraceForge — Replay. Debug. Reimagine.">
+<meta property="og:description" content="Deterministic record/replay debugging for LLM agents.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23080808'/%3E%3Cpath d='M8 10h16M16 10v14' stroke='%23ff2438' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #080808; --red: #ff2438; --red-deep: #8f0f1c; --scarlet: #ff4a58;
+    --text: #f5f5f5; --muted: #8c8c8c; --dim: #5a5a5a;
+    --line: #ffffff14; --line-2: #ffffff26; --glass: #ffffff08;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 6px; }
+  .skip { position: absolute; left: 12px; top: -60px; background: var(--red); color: #fff; padding: 8px 14px; border-radius: 8px; z-index: 100; font-weight: 600; }
+  .skip:focus { top: 12px; }
+
+  #net { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at 50% 40%, transparent 35%, #080808e6 100%); }
+  .wrap { position: relative; z-index: 2; max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* nav */
+  .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; transition: background .3s, border-color .3s; border-bottom: 1px solid transparent; }
+  .nav.solid { background: #080808cc; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-color: var(--line); }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.02em; font-size: 18px; }
+  .brand svg { width: 26px; height: 26px; }
+  .brand b span { color: var(--red); }
+  .nav ul { display: flex; gap: 6px; list-style: none; }
+  .nav ul a { display: block; padding: 8px 14px; font-size: 14px; color: var(--muted); border-radius: 8px; transition: color .2s, background .2s; }
+  .nav ul a:hover { color: var(--text); background: var(--glass); }
+
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; font: 600 15px var(--sans); padding: 14px 26px; border-radius: 12px; border: 1px solid transparent; cursor: pointer; transition: transform .2s, box-shadow .25s, background .25s, border-color .25s; }
+  .btn-red { background: linear-gradient(180deg, var(--scarlet), var(--red) 60%, #d6162a); color: #fff; box-shadow: 0 0 0 1px #ffffff2a inset, 0 10px 40px -10px #ff2438cc; }
+  .btn-red:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px #ffffff40 inset, 0 16px 50px -10px #ff2438; }
+  .btn-glass { background: var(--glass); border-color: var(--line-2); color: var(--text); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .btn-glass:hover { border-color: #ff243880; background: #ff24380f; transform: translateY(-2px); }
+  .btn svg { width: 16px; height: 16px; transition: transform .25s; }
+  .btn:hover svg { transform: translateX(3px); }
+
+  /* hero */
+  .hero { min-height: 100vh; min-height: 100svh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 120px 0 80px; position: relative; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; left: 50%; top: 46%; width: min(900px, 140%); aspect-ratio: 1.5; transform: translate(-50%, -50%); background: radial-gradient(closest-side, #ff24382e, #8f0f1c14 55%, transparent); animation: breathe 7s ease-in-out infinite; pointer-events: none; }
+  @keyframes breathe { 50% { opacity: .55; transform: translate(-50%, -50%) scale(1.08); } }
+  .hero .wrap { position: relative; }
+  .tag { display: inline-flex; align-items: center; gap: 10px; font: 500 12.5px var(--mono); color: var(--muted); letter-spacing: .18em; text-transform: uppercase; }
+  .tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 12px var(--red); animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .logo-word { font-size: clamp(56px, 12vw, 136px); font-weight: 800; letter-spacing: -.055em; line-height: .95; margin: 22px 0 0; }
+  .logo-word span { background: linear-gradient(100deg, #ff6a74 0%, var(--red) 45%, #b8101f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tagline { font: 500 clamp(14px, 2.2vw, 18px) var(--mono); color: var(--muted); margin-top: 16px; letter-spacing: .08em; }
+  .tagline em { font-style: normal; color: var(--text); }
+  .hero h1 { font-size: clamp(22px, 3.6vw, 36px); font-weight: 600; letter-spacing: -.025em; line-height: 1.2; margin: 48px auto 0; max-width: 720px; }
+  .hero p.sub { color: var(--muted); max-width: 540px; margin: 16px auto 0; font-size: clamp(15px, 2vw, 17px); }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 36px; }
+  .scroll-hint { position: absolute; bottom: 28px; left: 50%; width: 22px; height: 36px; margin-left: -11px; border: 1px solid var(--line-2); border-radius: 12px; }
+  .scroll-hint::after { content: ""; position: absolute; left: 50%; top: 7px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: var(--red); animation: wheel 1.8s infinite; }
+  @keyframes wheel { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(12px); } }
+
+  /* demo */
+  section { padding: 100px 0 0; }
+  .eyebrow { font: 500 12px var(--mono); color: var(--red); letter-spacing: .2em; text-transform: uppercase; }
+  h2 { font-size: clamp(28px, 4.6vw, 46px); letter-spacing: -.035em; line-height: 1.08; font-weight: 700; margin-top: 12px; }
+  .demo { margin-top: 40px; border: 1px solid var(--line-2); border-radius: 20px; background: linear-gradient(180deg, #ffffff0a, #ffffff03); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); overflow: hidden; box-shadow: 0 50px 120px -60px #ff2438aa; }
+  .rail { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+  .rail::after { content: ""; position: absolute; left: 0; bottom: -1px; height: 2px; width: 25%; background: linear-gradient(90deg, var(--red-deep), var(--red)); box-shadow: 0 0 18px var(--red); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+  .st { background: none; border: 0; border-right: 1px solid var(--line); color: var(--muted); padding: 18px 18px 16px; text-align: left; cursor: pointer; font-family: var(--sans); transition: background .25s, color .25s; }
+  .st:last-child { border-right: 0; }
+  .st:hover { background: #ff24380a; color: var(--text); }
+  .st small { display: block; font: 11px var(--mono); color: var(--dim); letter-spacing: .12em; }
+  .st strong { display: block; font: 700 15px var(--mono); letter-spacing: .1em; margin-top: 2px; }
+  .st[aria-selected="true"] { color: var(--text); background: #ff24380f; }
+  .st[aria-selected="true"] strong { color: var(--red); }
+  .body { display: grid; grid-template-columns: 1.2fr 1fr; }
+  .body > * { min-width: 0; }
+  .term { border-right: 1px solid var(--line); background: #050505b0; }
+  .bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border-bottom: 1px solid var(--line); font: 12px var(--mono); color: var(--dim); }
+  .bar i { width: 10px; height: 10px; border-radius: 50%; background: #ffffff1c; }
+  .bar i:first-child { background: var(--red); box-shadow: 0 0 8px #ff243899; }
+  .bar span { margin-left: 8px; }
+  pre.out { padding: 18px; font: 13px/1.9 var(--mono); min-height: 300px; white-space: pre-wrap; overflow-wrap: anywhere; color: #d6d6d6; }
+  .p::before { content: "$ "; color: var(--red); }
+  .c { color: var(--dim); } .err { color: var(--scarlet); } .ok { color: #fff; font-weight: 600; } .hl { color: var(--red); font-weight: 600; }
+  .ln { opacity: 0; transform: translateY(4px); animation: in .35s forwards; }
+  @keyframes in { to { opacity: 1; transform: none; } }
+  .caret::after { content: "▍"; color: var(--red); animation: pulse 1s steps(2) infinite; }
+  .side { padding: 22px; display: flex; flex-direction: column; gap: 20px; }
+  .side h3 { font-size: 20px; letter-spacing: -.02em; font-weight: 650; }
+  .side p { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
+  .tl { list-style: none; position: relative; }
+  .tl::before { content: ""; position: absolute; left: 11px; top: 12px; bottom: 12px; width: 1px; background: var(--line-2); }
+  .ev { position: relative; display: flex; align-items: center; gap: 14px; padding: 7px 0; font: 12.5px var(--mono); color: var(--muted); transition: opacity .3s, color .3s; }
+  .ev .n { width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--line-2); font-size: 10px; color: var(--dim); z-index: 1; transition: all .3s; }
+  .ev .t { flex: 1; min-width: 0; } .ev .t em { font-style: normal; display: block; font-size: 11px; color: var(--dim); }
+  .ev .b { font-size: 10.5px; border: 1px solid var(--line-2); border-radius: 99px; padding: 2px 9px; color: var(--dim); white-space: nowrap; }
+  .ev.off { opacity: .25; }
+  .ev.on .n { border-color: var(--red-deep); color: var(--scarlet); }
+  .ev.on { color: var(--text); }
+  .ev.hot .n { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 0 16px #ff2438cc; }
+  .ev.hot .b { color: var(--red); border-color: #ff243866; }
+  .foot-note { padding: 10px 16px; border-top: 1px solid var(--line); font: 11.5px var(--mono); color: var(--dim); }
+  .foot-note button { float: right; background: none; border: 1px solid var(--line-2); border-radius: 8px; color: var(--muted); font: 11.5px var(--mono); padding: 3px 10px; cursor: pointer; }
+  .foot-note button:hover { color: var(--text); border-color: #ff243880; }
+
+  /* features */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; }
+  .cards > * { min-width: 0; }
+  .card { position: relative; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow: hidden; transition: border-color .3s, transform .3s; }
+  .card::before { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .35s; background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 0), #ff243826, transparent 70%); pointer-events: none; }
+  .card:hover { border-color: #ff243866; transform: translateY(-3px); }
+  .card:hover::before { opacity: 1; }
+  .card svg { width: 26px; height: 26px; stroke: var(--red); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; position: relative; margin-bottom: 18px; }
+  .card h3 { font-size: 17px; font-weight: 650; letter-spacing: -.015em; position: relative; }
+  .card p { color: var(--muted); font-size: 14.5px; margin-top: 6px; position: relative; }
+  code { font: .88em var(--mono); background: #ffffff0f; padding: 1px 6px; border-radius: 5px; }
+
+  /* quick start */
+  .qs { display: grid; gap: 14px; margin-top: 36px; }
+  .qs > * { min-width: 0; }
+  pre.code { position: relative; border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; background: #050505b8; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font: 13.5px/1.9 var(--mono); color: #e8e8e8; overflow-x: auto; transition: border-color .3s, box-shadow .3s; }
+  pre.code:hover { border-color: #ff243860; box-shadow: 0 0 40px -18px #ff2438; }
+  pre.code .k { color: var(--red); } pre.code .s { color: #ff8b95; } pre.code .cm { color: var(--dim); }
+  .copy { position: absolute; right: 12px; top: 12px; background: var(--glass); border: 1px solid var(--line-2); color: var(--muted); border-radius: 8px; font: 11.5px var(--mono); padding: 4px 10px; cursor: pointer; }
+  .copy:hover { color: var(--text); border-color: #ff243880; }
+
+  /* footer */
+  footer { margin-top: 120px; padding: 36px 0 40px; border-top: 1px solid var(--line); position: relative; z-index: 2; background: linear-gradient(180deg, transparent, #ff243808); }
+  .fr { display: flex; justify-content: space-between; align-items: center; gap: 16px 32px; flex-wrap: wrap; }
+  .fr nav { display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
+  .fr nav a { color: var(--muted); transition: color .2s; } .fr nav a:hover { color: var(--red); }
+  .legal { margin-top: 22px; font-size: 12.5px; color: var(--dim); max-width: 720px; }
+  .legal a { color: var(--muted); text-decoration: underline; text-decoration-color: #ffffff30; text-underline-offset: 3px; }
+
+  .rv { opacity: 0; transform: translateY(16px); transition: opacity .7s, transform .7s; }
+  .rv.in { opacity: 1; transform: none; }
+
+  @media (max-width: 900px) {
+    .body { grid-template-columns: 1fr; }
+    .term { border-right: 0; border-bottom: 1px solid var(--line); }
+    .cards { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 0 16px; }
+    section { padding-top: 72px; }
+    .rail { grid-template-columns: 1fr 1fr; }
+    .rail::after { display: none; }
+    .st:nth-child(2) { border-right: 0; } .st:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    .st[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--red); }
+    pre.out { font-size: 12px; min-height: 250px; }
+    .nav ul a { padding: 8px 10px; }
+    .fr { flex-direction: column; align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    .rv { opacity: 1; transform: none; } .ln { opacity: 1; transform: none; }
+  }
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+<a class="skip" href="#demo">Skip to demo</a>
+<canvas id="net" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="TraceForge home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0e0e0e" stroke="#ffffff26"/><path d="M8 10h16M16 10v14" stroke="#ff2438" stroke-width="3.2" stroke-linecap="round"/></svg>
+      <b>Trace<span>Forge</span></b>
+    </a>
+    <nav aria-label="Primary"><ul>
+      <li><a href="#demo">Demo</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#start">Quick start</a></li>
+    </ul></nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero" id="top">
+    <div class="wrap">
+      <span class="tag"><i></i>Deterministic record/replay for LLM agents</span>
+      <div class="logo-word"><span>TraceForge</span></div>
+      <p class="tagline"><em>Replay.</em> <em>Debug.</em> <em>Reimagine.</em></p>
+      <h1>Debug AI agents. Without replaying the chaos.</h1>
+      <p class="sub">Record once. Replay deterministically. Fork any step. Find exactly where your AI agent went wrong.</p>
+      <div class="cta">
+        <a class="btn btn-red" href="#demo">Explore Demo <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+        <a class="btn btn-glass" href="https://github.com/YOUR-USERNAME/traceforge" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+    </div>
+    <span class="scroll-hint" aria-hidden="true"></span>
+  </div>
+
+  <section id="demo">
+    <div class="wrap">
+      <div class="rv">
+        <span class="eyebrow">Interactive demo</span>
+        <h2>Record. Replay. Fork. Diff.</h2>
+      </div>
+      <div class="demo rv" id="demoBox">
+        <div class="rail" role="tablist" aria-label="Workflow stages" id="rail">
+          <button class="st" role="tab" id="tab-0" aria-controls="panel" aria-selected="true"><small>01</small><strong>RECORD</strong></button>
+          <button class="st" role="tab" id="tab-1" aria-controls="panel" aria-selected="false" tabindex="-1"><small>02</small><strong>REPLAY</strong></button>
+          <button class="st" role="tab" id="tab-2" aria-controls="panel" aria-selected="false" tabindex="-1"><small>03</small><strong>FORK</strong></button>
+          <button class="st" role="tab" id="tab-3" aria-controls="panel" aria-selected="false" tabindex="-1"><small>04</small><strong>DIFF</strong></button>
+        </div>
+        <div class="body" id="panel" role="tabpanel" aria-labelledby="tab-0">
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span id="title">demo/agent.ts</span></div>
+            <pre class="out" id="out" aria-live="polite"></pre>
+          </div>
+          <div class="side">
+            <div><h3 id="h"></h3><p id="d"></p></div>
+            <ol class="tl" id="tl"></ol>
+          </div>
+        </div>
+        <div class="foot-note"><button id="play" type="button" aria-pressed="true">Pause auto-play</button>Illustrative session from the demo/agent.ts expense-audit agent.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="cards rv">
+        <article class="card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+          <h3>Deterministic Replay</h3>
+          <p>Serve recorded responses, exact SSE framing included, from a local SQLite journal. Offline, no API key, $0.</p>
+        </article>
+        <article class="card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></svg>
+          <h3>Counterfactual Forking</h3>
+          <p>Rewrite any recorded response with <code>fork --at</code> and replay the alternate timeline, also offline.</p>
+        </article>
+        <article class="card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h7M4 12h7M4 18h7M13 6h7M13 12h4M13 18h7"/><path d="M17 10l3 2-3 2" /></svg>
+          <h3>Execution Diff</h3>
+          <p>Compare two runs event by event and land on the first divergence.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <div class="rv">
+        <span class="eyebrow">Quick start</span>
+        <h2>Two lines to wire in.</h2>
+      </div>
+      <div class="qs rv">
+        <pre class="code" data-copy tabindex="0"><span class="k">import</span> Anthropic <span class="k">from</span> <span class="s">"@anthropic-ai/sdk"</span>;
+<span class="k">import</span> { fromEnv } <span class="k">from</span> <span class="s">"traceforge"</span>;
+
+<span class="k">const</span> session = fromEnv();
+<span class="k">const</span> client = <span class="k">new</span> Anthropic({ fetch: session.fetch });
+<span class="cm">// wrap other non-determinism: await session.io("fx_rate", fetchRate)</span></pre>
+        <pre class="code" data-copy tabindex="0">traceforge record -- node agent.js          <span class="cm"># run live, journal everything</span>
+traceforge replay &lt;run&gt; -- node agent.js    <span class="cm"># re-run offline</span>
+traceforge fork &lt;run&gt; --at 46 --text …      <span class="cm"># rewrite step 46</span>
+traceforge diff &lt;run&gt; &lt;fork&gt;                <span class="cm"># where the futures diverge</span></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fr">
+      <a class="brand" href="#top" aria-label="TraceForge home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0e0e0e" stroke="#ffffff26"/><path d="M8 10h16M16 10v14" stroke="#ff2438" stroke-width="3.2" stroke-linecap="round"/></svg><b>Trace<span>Forge</span></b></a>
+      <nav aria-label="Footer">
+        <a href="https://github.com/YOUR-USERNAME/traceforge" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* nav background */
+  var nav = $("nav");
+  function onScroll() { nav.classList.toggle("solid", scrollY > 20); }
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  /* reveal + card spotlight */
+  var rvs = [].slice.call(document.querySelectorAll(".rv"));
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { threshold: .1 });
+    rvs.forEach(function (el) { io.observe(el); });
+  } else rvs.forEach(function (el) { el.classList.add("in"); });
+  [].forEach.call(document.querySelectorAll(".card"), function (c) {
+    c.addEventListener("pointermove", function (e) {
+      var r = c.getBoundingClientRect();
+      c.style.setProperty("--mx", (e.clientX - r.left) + "px"); c.style.setProperty("--my", (e.clientY - r.top) + "px");
+    });
+  });
+
+  /* execution-network background */
+  var cv = $("net"), ctx = cv.getContext("2d");
+  if (ctx) {
+    var W, H, dpr, pts = [], orbs = [], mx = -1e4, my = -1e4, running = true;
+    var LINK = 130;
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+    function size() {
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var n = Math.max(24, Math.min(80, Math.round(W * H / 20000)));
+      pts = []; for (var i = 0; i < n; i++) pts.push({ x: rnd(0, W), y: rnd(0, H), vx: rnd(-.18, .18), vy: rnd(-.18, .18), z: rnd(.4, 1.2), s: Math.random() * 6 });
+      orbs = []; for (var j = 0; j < 4; j++) orbs.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(140, 280), vx: rnd(-.08, .08), vy: rnd(-.08, .08) });
+    }
+    function draw(t) {
+      ctx.clearRect(0, 0, W, H);
+      orbs.forEach(function (o) {
+        if (!reduced) { o.x += o.vx; o.y += o.vy; if (o.x < -o.r || o.x > W + o.r) o.vx *= -1; if (o.y < -o.r || o.y > H + o.r) o.vy *= -1; }
+        var g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+        g.addColorStop(0, "rgba(200,26,44,.07)"); g.addColorStop(1, "rgba(143,15,28,0)");
+        ctx.fillStyle = g; ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
+      });
+      var i, j, a, b, dx, dy, d;
+      for (i = 0; i < pts.length; i++) {
+        a = pts[i];
+        if (!reduced) {
+          a.x += a.vx * a.z; a.y += a.vy * a.z;
+          if (a.x < 0) a.x = W; else if (a.x > W) a.x = 0;
+          if (a.y < 0) a.y = H; else if (a.y > H) a.y = 0;
+        }
+        dx = a.x - mx; dy = a.y - my; d = dx * dx + dy * dy;
+        if (d < 14400 && d > 1) { var f = (1 - Math.sqrt(d) / 120) * .6; a.x += dx / Math.sqrt(d) * f; a.y += dy / Math.sqrt(d) * f; }
+        for (j = i + 1; j < pts.length; j++) {
+          b = pts[j]; dx = a.x - b.x; dy = a.y - b.y; d = dx * dx + dy * dy;
+          if (d < LINK * LINK) {
+            ctx.strokeStyle = "rgba(190,24,42," + ((1 - Math.sqrt(d) / LINK) * .14).toFixed(3) + ")";
+            ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+        }
+      }
+      for (i = 0; i < pts.length; i++) {
+        a = pts[i];
+        var tw = reduced ? 1 : .65 + .35 * Math.sin(t / 900 + a.s);
+        ctx.fillStyle = "rgba(200,26,44," + (.38 * tw * a.z).toFixed(3) + ")";
+        ctx.shadowColor = "rgba(160,16,32,.5)"; ctx.shadowBlur = 6 * a.z;
+        ctx.beginPath(); ctx.arc(a.x, a.y, 1.3 * a.z, 0, 6.2832); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+    function loop(t) { if (!running) return; draw(t); if (!reduced) requestAnimationFrame(loop); }
+    size(); requestAnimationFrame(loop);
+    var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); if (reduced) draw(0); }, 150); });
+    addEventListener("pointermove", function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
+    document.addEventListener("visibilitychange", function () { running = !document.hidden; if (running && !reduced) requestAnimationFrame(loop); });
+  }
+
+  /* copy buttons */
+  [].forEach.call(document.querySelectorAll("pre[data-copy]"), function (pre) {
+    var b = document.createElement("button");
+    b.className = "copy"; b.type = "button"; b.textContent = "Copy"; b.setAttribute("aria-label", "Copy code to clipboard");
+    b.addEventListener("click", function () {
+      var c = pre.cloneNode(true); c.querySelector(".copy").remove();
+      var done = function (m) { b.textContent = m; setTimeout(function () { b.textContent = "Copy"; }, 1400); };
+      if (navigator.clipboard) navigator.clipboard.writeText(c.textContent).then(function () { done("Copied"); }, function () { done("Failed"); });
+      else done("Unavailable");
+    });
+    pre.appendChild(b);
+  });
+
+  /* interactive demo */
+  var EV = [
+    { n: 1, t: "llm.call", d: "plan the audit" },
+    { n: 2, t: "io", d: "tool result" },
+    { n: 3, t: "llm.call", d: "analyse items" },
+    { n: 4, t: "llm.call", d: "report total" },
+    { n: 5, t: "agent.final", d: "format output" }
+  ];
+  var ST = [
+    { title: "record · demo/agent.ts", h: "Capture a live run", on: 5, tags: ["live","live","live","live","crash"], bad: 5,
+      d: "Run the agent under traceforge record. Every LLM response (SSE chunk boundaries included), tool result, time and random value goes into a SQLite journal.",
+      lines: [["p","traceforge record -- npx tsx demo/agent.ts"],["c","▸ journaling events…"],["err","✗ TypeError: Cannot read properties of undefined (reading 'toFixed')"],["c","run 3f2a91c4 saved"]] },
+    { title: "replay · offline", h: "Reproduce it offline", on: 5, tags: ["journal","journal","journal","journal","crash"], bad: 5,
+      d: "Replay serves the journal instead of the network: no API key, no tokens. The same crash reproduces, so you can fix the code and replay again.",
+      lines: [["p","traceforge replay 3f2a91c4 -- npx tsx demo/agent.ts"],["err","✗ same crash"],["c","  offline · $0.00"],["p","# fix the one-line bug, then replay again"],["p","traceforge replay 3f2a91c4 -- npx tsx demo/agent.ts"],["ok","✓ audit complete, verified without an API call"]] },
+    { title: "fork · what if?", h: "Change an earlier response", on: 4, tags: ["journal","journal","journal","edited"], hot: 4,
+      d: "fork --at 4 rewrites the recorded response at step 4 and saves a new run. Replaying it shows how the agent behaves under the edited history.",
+      lines: [["p","traceforge fork 3f2a91c4 --at 4 \\"],["","    --text '{\"total_usd\": 0, \"flagged\": []}'"],["ok","✓ forked run 9be07d12"],["p","traceforge replay 9be07d12 -- npx tsx demo/agent.ts"],["c","the agent lives the edited history"]] },
+    { title: "diff · 3f2a91c4 ↔ 9be07d12", h: "Compare the outcomes", on: 4, tags: ["same","same","same","differs"], hot: 4,
+      d: "diff compares two runs event by event and reports the first divergence: same request, different response.",
+      lines: [["p","traceforge diff 3f2a91c4 9be07d12"],["c","seq 1  = same"],["c","seq 2  = same"],["c","seq 3  = same"],["hl","first divergence at seq 4"],["c","same request, different response"]] }
+  ];
+  var tabs = [].slice.call(document.querySelectorAll(".st")), rail = $("rail");
+  var cur = 0, timer, playing = !reduced, vis = false;
+  function esc(s) { return s.replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function render(i) {
+    cur = i; var s = ST[i];
+    tabs.forEach(function (t, k) { t.setAttribute("aria-selected", String(k === i)); t.tabIndex = k === i ? 0 : -1; });
+    rail.style.setProperty("--i", i);
+    $("panel").setAttribute("aria-labelledby", "tab-" + i);
+    $("title").textContent = s.title; $("h").textContent = s.h; $("d").textContent = s.d;
+    var delay = 0;
+    $("out").innerHTML = s.lines.map(function (l, k) {
+      var h = '<span class="ln ' + l[0] + (l[0] === "p" ? "" : "") + '" style="animation-delay:' + (reduced ? 0 : delay) + 'ms">' + esc(l[1]) + "</span>\n";
+      delay += 240; return h;
+    }).join("");
+    $("tl").innerHTML = EV.map(function (e) {
+      var on = e.n <= s.on, cls = "ev " + (on ? "on" : "off") + (s.hot === e.n ? " hot" : "");
+      return '<li class="' + cls + '"><span class="n">' + (s.bad === e.n ? "✗" : e.n) + '</span><span class="t">' + e.t + "<em>seq " + e.n + " · " + e.d + '</em></span><span class="b">' + (on ? s.tags[e.n - 1] : "—") + "</span></li>";
+    }).join("");
+  }
+  function sched() { clearTimeout(timer); if (playing && vis) timer = setTimeout(function () { render((cur + 1) % 4); sched(); }, 5500); }
+  function syncBtn() { $("play").textContent = playing ? "Pause auto-play" : "Resume auto-play"; $("play").setAttribute("aria-pressed", String(playing)); }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { render(i); if (playing) { playing = false; syncBtn(); } sched(); });
+    t.addEventListener("keydown", function (e) {
+      var n = null;
+      if (e.key === "ArrowRight") n = (i + 1) % 4; else if (e.key === "ArrowLeft") n = (i + 3) % 4;
+      else if (e.key === "Home") n = 0; else if (e.key === "End") n = 3;
+      if (n !== null) { e.preventDefault(); render(n); tabs[n].focus(); if (playing) { playing = false; syncBtn(); } }
+    });
+  });
+  $("play").addEventListener("click", function () { playing = !playing; syncBtn(); sched(); });
+  syncBtn(); render(0);
+  if ("IntersectionObserver" in window) new IntersectionObserver(function (es) { vis = es[0].isIntersecting; sched(); }, { threshold: .3 }).observe($("demoBox"));
+})();
+</script>
+</body>
+</html>
