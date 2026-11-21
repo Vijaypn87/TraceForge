@@ -9,6 +9,11 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="TraceForge — Replay. Debug. Reimagine.">
 <meta property="og:description" content="Deterministic record/replay debugging for LLM agents.">
+<meta property="og:url" content="https://traceforgeai.vercel.app/">
+<meta property="og:image" content="https://traceforgeai.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23080808'/%3E%3Cpath d='M8 10h16M16 10v14' stroke='%23ff2438' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -159,8 +164,12 @@
     .st:nth-child(2) { border-right: 0; } .st:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
     .st[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--red); }
     pre.out { font-size: 12px; min-height: 250px; }
-    .nav ul a { padding: 8px 10px; }
+    .nav ul { gap: 2px; }
+    .nav ul a { padding: 8px 9px; font-size: 13.5px; white-space: nowrap; }
     .fr { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-width: 420px) {
+    .nav .brand b { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
@@ -259,14 +268,18 @@
     <div class="wrap">
       <div class="rv">
         <span class="eyebrow">Quick start</span>
-        <h2>Two lines to wire in.</h2>
+        <h2>A few lines to wire in.</h2>
       </div>
       <div class="qs rv">
         <pre class="code" data-copy tabindex="0"><span class="k">import</span> Anthropic <span class="k">from</span> <span class="s">"@anthropic-ai/sdk"</span>;
 <span class="k">import</span> { fromEnv } <span class="k">from</span> <span class="s">"traceforge"</span>;
 
 <span class="k">const</span> session = fromEnv();
-<span class="k">const</span> client = <span class="k">new</span> Anthropic({ fetch: session.fetch });
+<span class="k">const</span> client = <span class="k">new</span> Anthropic({
+  <span class="cm">// replay never reaches the network, so a placeholder key works offline</span>
+  apiKey: process.env.ANTHROPIC_API_KEY ?? <span class="s">"offline-replay"</span>,
+  fetch: session.fetch,
+});
 <span class="cm">// wrap other non-determinism: await session.io("fx_rate", fetchRate)</span></pre>
         <pre class="code" data-copy tabindex="0">traceforge record -- node agent.js          <span class="cm"># run live, journal everything</span>
 traceforge replay &lt;run&gt; -- node agent.js    <span class="cm"># re-run offline</span>
@@ -283,8 +296,10 @@ traceforge diff &lt;run&gt; &lt;fork&gt;                <span class="cm"># where
       <a class="brand" href="#top" aria-label="TraceForge home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0e0e0e" stroke="#ffffff26"/><path d="M8 10h16M16 10v14" stroke="#ff2438" stroke-width="3.2" stroke-linecap="round"/></svg><b>Trace<span>Forge</span></b></a>
       <nav aria-label="Footer">
         <a href="https://github.com/Vijaypn87/TraceForge" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/Vijaypn87/TraceForge/blob/main/DECISIONS.md" target="_blank" rel="noopener noreferrer">Design decisions</a>
       </nav>
     </div>
+    <p class="legal">Built by Vijay PN · <a href="https://github.com/Vijaypn87/TraceForge/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a></p>
   </div>
 </footer>
 
@@ -384,26 +399,30 @@ traceforge diff &lt;run&gt; &lt;fork&gt;                <span class="cm"># where
   });
 
   /* interactive demo */
+  /* Mirrors a real `traceforge show` of demo/agent.ts: seq 0–4 are journaled
+   * events; the last row is the agent's own code, which crashes and is not
+   * an event. Stage fields (on/bad/hot) index into this list. */
   var EV = [
-    { n: 1, t: "llm.call", d: "plan the audit" },
-    { n: 2, t: "io", d: "tool result" },
-    { n: 3, t: "llm.call", d: "analyse items" },
-    { n: 4, t: "llm.call", d: "report total" },
-    { n: 5, t: "agent.final", d: "format output" }
+    { s: 0, t: "io", d: "load_expenses" },
+    { s: 1, t: "llm_call", d: "categorize expenses" },
+    { s: 2, t: "io", d: "eur_usd_rate" },
+    { s: 3, t: "llm_call", d: "flag suspicious items" },
+    { s: 4, t: "llm_call", d: "final report (JSON)" },
+    { s: null, t: "agent code", d: "reads report.summary · not journaled" }
   ];
   var ST = [
-    { title: "record · demo/agent.ts", h: "Capture a live run", on: 5, tags: ["live","live","live","live","crash"], bad: 5,
-      d: "Run the agent under traceforge record. Every LLM response (SSE chunk boundaries included), tool result, time and random value goes into a SQLite journal.",
+    { title: "record · demo/agent.ts", h: "Capture a live run", on: 6, tags: ["live","live","live","live","live","crash"], bad: 5,
+      d: "Run the agent under traceforge record. Every LLM response (SSE chunk boundaries included) and every value you wrap in session.io(), such as tool results, the clock or random numbers, goes into a SQLite journal.",
       lines: [["p","traceforge record -- npx tsx demo/agent.ts"],["c","▸ journaling events…"],["err","✗ TypeError: Cannot read properties of undefined (reading 'toFixed')"],["c","run 3f2a91c4 saved"]] },
-    { title: "replay · offline", h: "Reproduce it offline", on: 5, tags: ["journal","journal","journal","journal","crash"], bad: 5,
+    { title: "replay · offline", h: "Reproduce it offline", on: 6, tags: ["journal","journal","journal","journal","journal","crash"], bad: 5,
       d: "Replay serves the journal instead of the network: no API key, no tokens. The same crash reproduces, so you can fix the code and replay again.",
       lines: [["p","traceforge replay 3f2a91c4 -- npx tsx demo/agent.ts"],["err","✗ same crash"],["c","  offline · $0.00"],["p","# fix the one-line bug, then replay again"],["p","traceforge replay 3f2a91c4 -- npx tsx demo/agent.ts"],["ok","✓ audit complete, verified without an API call"]] },
-    { title: "fork · what if?", h: "Change an earlier response", on: 4, tags: ["journal","journal","journal","edited"], hot: 4,
-      d: "fork --at 4 rewrites the recorded response at step 4 and saves a new run. Replaying it shows how the agent behaves under the edited history.",
+    { title: "fork · what if?", h: "Change an earlier response", on: 5, tags: ["journal","journal","journal","journal","edited"], hot: 4,
+      d: "fork --at 4 rewrites the recorded response at seq 4 and saves a new run. Replaying it shows how the agent behaves under the edited history.",
       lines: [["p","traceforge fork 3f2a91c4 --at 4 \\"],["","    --text '{\"total_usd\": 0, \"flagged\": []}'"],["ok","✓ forked run 9be07d12"],["p","traceforge replay 9be07d12 -- npx tsx demo/agent.ts"],["c","the agent lives the edited history"]] },
-    { title: "diff · 3f2a91c4 ↔ 9be07d12", h: "Compare the outcomes", on: 4, tags: ["same","same","same","differs"], hot: 4,
+    { title: "diff · 3f2a91c4 ↔ 9be07d12", h: "Compare the outcomes", on: 5, tags: ["same","same","same","same","differs"], hot: 4,
       d: "diff compares two runs event by event and reports the first divergence: same request, different response.",
-      lines: [["p","traceforge diff 3f2a91c4 9be07d12"],["c","seq 1  = same"],["c","seq 2  = same"],["c","seq 3  = same"],["hl","first divergence at seq 4"],["c","same request, different response"]] }
+      lines: [["p","traceforge diff 3f2a91c4 9be07d12"],["c","seq 0  = same"],["c","seq 1  = same"],["c","seq 2  = same"],["c","seq 3  = same"],["hl","first divergence at seq 4"],["c","same request, different response"]] }
   ];
   var tabs = [].slice.call(document.querySelectorAll(".st")), rail = $("rail");
   var cur = 0, timer, playing = !reduced, vis = false;
@@ -419,9 +438,11 @@ traceforge diff &lt;run&gt; &lt;fork&gt;                <span class="cm"># where
       var h = '<span class="ln ' + l[0] + (l[0] === "p" ? "" : "") + '" style="animation-delay:' + (reduced ? 0 : delay) + 'ms">' + esc(l[1]) + "</span>\n";
       delay += 240; return h;
     }).join("");
-    $("tl").innerHTML = EV.map(function (e) {
-      var on = e.n <= s.on, cls = "ev " + (on ? "on" : "off") + (s.hot === e.n ? " hot" : "");
-      return '<li class="' + cls + '"><span class="n">' + (s.bad === e.n ? "✗" : e.n) + '</span><span class="t">' + e.t + "<em>seq " + e.n + " · " + e.d + '</em></span><span class="b">' + (on ? s.tags[e.n - 1] : "—") + "</span></li>";
+    $("tl").innerHTML = EV.map(function (e, k) {
+      var on = k < s.on, cls = "ev " + (on ? "on" : "off") + (s.hot === k ? " hot" : "");
+      var mark = s.bad === k ? "✗" : e.s === null ? "·" : e.s;
+      var sub = (e.s === null ? "" : "seq " + e.s + " · ") + e.d;
+      return '<li class="' + cls + '"><span class="n">' + mark + '</span><span class="t">' + e.t + "<em>" + sub + '</em></span><span class="b">' + (on ? s.tags[k] : "—") + "</span></li>";
     }).join("");
   }
   function sched() { clearTimeout(timer); if (playing && vis) timer = setTimeout(function () { render((cur + 1) % 4); sched(); }, 5500); }
