@@ -46,7 +46,7 @@ flowchart LR
 ```
 
 - **Transport-boundary interception:** you pass `session.fetch` to the SDK client. No proxy, no certificate tricks, no global patching.
-- **SQLite journal:** every LLM call and `io()` result is an event; request and response bodies are stored as SHA-256 content-addressed blobs (`better-sqlite3`, WAL mode). Header secrets such as API keys are not journaled.
+- **SQLite journal:** every LLM call and `io()` result is an event; request and response bodies are stored as SHA-256 content-addressed blobs (`better-sqlite3`, WAL mode). Credentials are redacted before anything reaches disk: request auth headers and cookies, secret response headers (`set-cookie`, `anthropic-organization-id`), and credential-like URL query parameters (`key`, `api_key`, `token`, `signature`, …).
 - **Request canonicalization and fingerprinting:** JSON bodies are key-sorted, header names are case-folded, and volatile headers (`authorization`, `x-api-key`, `x-request-id`, `x-stainless-*`, …) are dropped before SHA-256 hashing. Semantic headers like `anthropic-version` stay in the fingerprint.
 - **Concurrency:** record stores each request's arrival index; replay pairs by it, so concurrent callers keep their own responses.
 - **Fork and compare:** a fork copies history before step N, swaps in the edited response, and drops the unknowable future. `diff` reports each event as same, changed, only-in-a or only-in-b.
@@ -110,6 +110,14 @@ $ traceforge replay <run> -- npx tsx demo/agent.ts        # same crash, offline,
 $ traceforge fork <run> --at 4 --text '{"total_usd": 0}'  # what if the model said $0?
 $ traceforge diff <run> <fork>                            # first divergence at seq 4
 ```
+
+## ◆ Known limitations
+
+- **Transport errors are not journaled.** If the live `fetch` itself throws (DNS failure, connection reset), no event is recorded, so a replay of that run reports a miss instead of reproducing the error. HTTP error *responses* (4xx/5xx) are recorded and replay normally.
+- **Unfinished streams may be lost.** A streamed response is journaled when it ends, errors, or is cancelled. If the agent abandons a stream without cancelling it, or calls `session.finish()` before it settles, that event is not recorded.
+- **`io()` matches by name and call order, not arguments.** Replay returns the recorded result for the *n*-th `io("name")` call even if its inputs changed. Errors replay as plain `Error` objects with the original `name` and `message`, so `instanceof` checks on custom error classes do not hold.
+- **Multipart uploads do not replay.** `FormData` bodies carry a random boundary, so their fingerprint changes every run.
+- **Body redaction is not automatic.** Secrets you put in request or response *bodies* (e.g. inside a prompt) are journaled as-is.
 
 ## ◆ Testing
 
