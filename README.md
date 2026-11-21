@@ -9,6 +9,7 @@ Deterministic record/replay debugging for LLM agents.
 [![Tests](https://img.shields.io/badge/tests-75%20passing-ff2438?style=for-the-badge&labelColor=080808)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-ff2438?style=for-the-badge&labelColor=080808&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-ff2438?style=for-the-badge&labelColor=080808&logo=typescript&logoColor=white)](./tsconfig.json)
+[![License](https://img.shields.io/badge/license-MIT-ff2438?style=for-the-badge&labelColor=080808)](./LICENSE)
 
 [**Live Demo**](https://traceforgeai.vercel.app/) &nbsp;·&nbsp; [**GitHub**](https://github.com/Vijaypn87/TraceForge) &nbsp;·&nbsp; [**Quick start**](#-quick-start)
 
@@ -65,6 +66,8 @@ Design rationale: [DECISIONS.md](./DECISIONS.md).
 
 ## ◆ Quick start
 
+> **Status:** early (v0.0.1) and not yet published to npm, so install from source. Works on macOS, Linux and Windows (Node ≥ 20).
+
 ```bash
 git clone https://github.com/Vijaypn87/TraceForge.git
 cd TraceForge
@@ -80,8 +83,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { fromEnv } from "traceforge";
 
 const session = fromEnv();
-const client = new Anthropic({ fetch: session.fetch });
+const client = new Anthropic({
+  // The SDK refuses to send a request without a key. Replay never reaches the
+  // network, so any placeholder works offline; record mode uses your real key.
+  apiKey: process.env.ANTHROPIC_API_KEY ?? "offline-replay",
+  fetch: session.fetch,
+});
 // wrap tools and other non-determinism: await session.io("fx_rate", fetchRate)
+// call session.finish() when the run is done
 ```
 
 Then drive it from the CLI:
@@ -127,3 +136,7 @@ npm run typecheck
 ```
 
 Coverage includes request canonicalization, the journal, record and replay, SSE streaming (including truncation and the real Anthropic SDK consuming a replayed stream), concurrent replay races, fork and hybrid replay, diff, and the CLI.
+
+## ◆ License
+
+[MIT](./LICENSE) © Vijay PN
