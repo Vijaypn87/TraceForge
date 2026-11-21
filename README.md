@@ -56,13 +56,13 @@ Design rationale: [DECISIONS.md](./DECISIONS.md).
 
 ## ◆ Tech stack
 
-![TypeScript](https://img.shields.io/badge/TypeScript-080808?style=flat-square&logo=typescript&logoColor=ff2438)
-![Node.js](https://img.shields.io/badge/Node.js-080808?style=flat-square&logo=node.js&logoColor=ff2438)
-![SQLite](https://img.shields.io/badge/SQLite-080808?style=flat-square&logo=sqlite&logoColor=ff2438)
-![better-sqlite3](https://img.shields.io/badge/better--sqlite3-080808?style=flat-square)
-![Commander](https://img.shields.io/badge/Commander.js-080808?style=flat-square)
-![Vitest](https://img.shields.io/badge/Vitest-080808?style=flat-square&logo=vitest&logoColor=ff2438)
-![Anthropic SDK](https://img.shields.io/badge/Anthropic%20SDK-080808?style=flat-square)
+![TypeScript](https://img.shields.io/badge/TypeScript-0d1117?style=flat-square&logo=typescript&logoColor=3178C6)
+![Node.js](https://img.shields.io/badge/Node.js-0d1117?style=flat-square&logo=nodedotjs&logoColor=5FA04E)
+![SQLite](https://img.shields.io/badge/SQLite-0d1117?style=flat-square&logo=sqlite&logoColor=0F80CC)
+![Commander.js](https://img.shields.io/badge/Commander.js-0d1117?style=flat-square)
+![Vitest](https://img.shields.io/badge/Vitest-0d1117?style=flat-square&logo=vitest&logoColor=FCC72B)
+![Anthropic SDK](https://img.shields.io/badge/Anthropic%20SDK-0d1117?style=flat-square&logo=anthropic&logoColor=D97757)
+![HTML / CSS](https://img.shields.io/badge/HTML%20%2F%20CSS-0d1117?style=flat-square&logo=html5&logoColor=E34F26)
 
 ## ◆ Quick start
 
