@@ -6,7 +6,7 @@
 
 Deterministic record/replay debugging for LLM agents.
 
-[![Tests](https://img.shields.io/badge/tests-69%20passing-ff2438?style=for-the-badge&labelColor=080808)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-75%20passing-ff2438?style=for-the-badge&labelColor=080808)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-ff2438?style=for-the-badge&labelColor=080808&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-ff2438?style=for-the-badge&labelColor=080808&logo=typescript&logoColor=white)](./tsconfig.json)
 
@@ -114,7 +114,7 @@ $ traceforge diff <run> <fork>                            # first divergence at 
 ## ◆ Testing
 
 ```bash
-npm test            # 69 tests across 12 files
+npm test            # 75 tests across 12 files
 npm run typecheck
 ```
 

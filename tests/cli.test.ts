@@ -121,4 +121,9 @@ describe("traceforge CLI", () => {
     expect(parsed.llm).toBe("recorded-answer"); // served from journal, no network, io fn not executed
     expect(parsed.tool).toEqual({ value: 42 });
   });
+
+  it("record: launches PATH shims such as npx (npx.cmd on Windows)", () => {
+    const out = cli(["record", "-j", journalPath, "--", "npx", "--version"]);
+    expect(out.trim()).toMatch(/^[0-9]+[.][0-9]+[.][0-9]+/);
+  });
 });

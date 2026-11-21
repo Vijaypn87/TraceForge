@@ -151,3 +151,79 @@ describe("secret redaction", () => {
     expect(headers["cookie"]).toBe("[redacted]");
   });
 });
+
+describe("secret redaction (responses and URLs)", () => {
+  it("redacts secret response headers before journaling, but passes them through to the caller", async () => {
+    const fake = createFakeAnthropic(() => ({
+      json: messageJson("hi"),
+      headers: { "set-cookie": "session=RESP-COOKIE", "anthropic-organization-id": "org-SECRET-ID", "x-custom": "kept" },
+    }));
+    const run = journal.createRun({});
+    const rec = createRecordingFetch(journal, run, fake.fetch);
+
+    const res = await rec(URL_, post({ turn: 0 }));
+    expect(res.headers.get("anthropic-organization-id")).toBe("org-SECRET-ID");
+    await res.text();
+
+    const event = journal.eventsForRun(run)[0]!;
+    const stored = new TextDecoder().decode(event.response);
+    expect(stored).not.toContain("RESP-COOKIE");
+    expect(stored).not.toContain("org-SECRET-ID");
+    const headers = decodeResponseEnvelope(event.response).headers;
+    expect(headers["set-cookie"]).toBe("[redacted]");
+    expect(headers["anthropic-organization-id"]).toBe("[redacted]");
+    expect(headers["x-custom"]).toBe("kept");
+  });
+
+  it("redacts credential-like query parameters from stored URLs, keeps the rest, and still sends the real URL", async () => {
+    const fake = createFakeAnthropic(() => ({ json: messageJson("hi") }));
+    const run = journal.createRun({});
+    const rec = createRecordingFetch(journal, run, fake.fetch);
+
+    await (await rec("https://api.example.com/v1/gen?model=m1&key=QUERY-SECRET&Access_Token=TOKEN-SECRET", post({ turn: 0 }))).text();
+    expect(fake.requests[0]!.url).toContain("key=QUERY-SECRET");
+
+    const event = journal.eventsForRun(run)[0]!;
+    const all = new TextDecoder().decode(event.request) + JSON.stringify(event.meta);
+    expect(all).not.toContain("QUERY-SECRET");
+    expect(all).not.toContain("TOKEN-SECRET");
+    expect(String(event.meta["url"])).toContain("model=m1");
+    expect(String(event.meta["url"])).toContain("key=%5Bredacted%5D");
+  });
+
+  it("gives requests that differ only in a redacted query secret the same fingerprint", async () => {
+    const fake = createFakeAnthropic(() => ({ json: messageJson("hi") }));
+    const run = journal.createRun({});
+    const rec = createRecordingFetch(journal, run, fake.fetch);
+    await (await rec("https://api.example.com/v1?key=AAA", post({ turn: 0 }))).text();
+    await (await rec("https://api.example.com/v1?key=BBB", post({ turn: 0 }))).text();
+    const [a, b] = journal.eventsForRun(run);
+    expect(a!.fingerprint).toBe(b!.fingerprint);
+  });
+});
+
+describe("Request-object input", () => {
+  it("records a Request with a body without consuming it before the real fetch", async () => {
+    const fake = createFakeAnthropic(() => ({ json: messageJson("hi") }));
+    const run = journal.createRun({});
+    const rec = createRecordingFetch(journal, run, fake.fetch);
+
+    const res = await rec(new Request(URL_, post({ turn: 7 })));
+    expect(res.status).toBe(200);
+    await res.text();
+
+    expect(fake.requests[0]!.body).toBe(JSON.stringify({ turn: 7 }));
+    const stored = JSON.parse(new TextDecoder().decode(journal.eventsForRun(run)[0]!.request)) as { body: string | null };
+    expect(stored.body).toBe(JSON.stringify({ turn: 7 }));
+  });
+
+  it("fingerprints a Request object the same as the equivalent (url, init) call", async () => {
+    const fake = createFakeAnthropic(() => ({ json: messageJson("hi") }));
+    const run = journal.createRun({});
+    const rec = createRecordingFetch(journal, run, fake.fetch);
+    await (await rec(new Request(URL_, post({ turn: 1 })))).text();
+    await (await rec(URL_, post({ turn: 1 }))).text();
+    const [a, b] = journal.eventsForRun(run);
+    expect(a!.fingerprint).toBe(b!.fingerprint);
+  });
+});
