@@ -14,25 +14,86 @@ import type { Journal, RunId } from "./journal.js";
 // as volatile anyway; cookie redacts to a constant, which both sides see.
 const SECRET_HEADERS = new Set(["authorization", "x-api-key", "cookie", "set-cookie", "proxy-authorization"]);
 
-function redactSecrets(headers: Record<string, string>): Record<string, string> {
+// Response headers additionally carry account identifiers that have no place
+// in a shareable artifact.
+const SECRET_RESPONSE_HEADERS = new Set([...SECRET_HEADERS, "anthropic-organization-id"]);
+
+const REDACTED = "[redacted]";
+
+export function redactSecrets(
+  headers: Record<string, string>,
+  secret: ReadonlySet<string> = SECRET_HEADERS,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
-    out[k] = SECRET_HEADERS.has(k.toLowerCase()) ? "[redacted]" : v;
+    out[k] = secret.has(k.toLowerCase()) ? REDACTED : v;
   }
   return out;
+}
+
+export function redactResponseHeaders(headers: Record<string, string>): Record<string, string> {
+  return redactSecrets(headers, SECRET_RESPONSE_HEADERS);
+}
+
+// Query parameters that conventionally carry credentials (e.g. Gemini's
+// ?key=, presigned-URL signatures). Matched case-insensitively on the name.
+const SECRET_QUERY_PARAMS = new Set([
+  "key",
+  "api_key",
+  "apikey",
+  "api-key",
+  "token",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "auth",
+  "secret",
+  "client_secret",
+  "password",
+  "signature",
+  "sig",
+  "x-amz-signature",
+  "x-amz-credential",
+  "x-amz-security-token",
+  "x-goog-signature",
+  "x-goog-credential",
+]);
+
+/** Mask credential-like query values. Applied before fingerprinting in both
+ * record and replay, so redacted URLs still match each other. */
+export function redactUrl(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  let changed = false;
+  for (const name of new Set(parsed.searchParams.keys())) {
+    if (SECRET_QUERY_PARAMS.has(name.toLowerCase())) {
+      const count = parsed.searchParams.getAll(name).length;
+      parsed.searchParams.delete(name);
+      for (let i = 0; i < count; i++) parsed.searchParams.append(name, REDACTED);
+      changed = true;
+    }
+  }
+  return changed ? parsed.toString() : url;
 }
 
 export async function requestFromFetchArgs(
   input: string | URL | Request,
   init?: RequestInit,
 ): Promise<RequestRecord> {
-  const req = new Request(input, init);
+  // Constructing a Request from a Request consumes the original's body, so
+  // build from a clone: the caller's input must stay usable for the real fetch.
+  const req = new Request(input instanceof Request ? input.clone() : input, init);
   const body = req.method === "GET" || req.method === "HEAD" ? null : await req.clone().text();
+  const hasBody = init?.body !== undefined || (input instanceof Request && input.body !== null);
   return {
-    url: req.url,
+    url: redactUrl(req.url),
     method: req.method,
     headers: redactSecrets(headersToRecord(req.headers)),
-    body: body === "" && init?.body === undefined ? null : body,
+    body: body === "" && !hasBody ? null : body,
   };
 }
 
@@ -75,7 +136,7 @@ export async function performAndJournal(
       response: encodeResponseEnvelope({
         status: res.status,
         statusText: res.statusText,
-        headers: headersToRecord(res.headers),
+        headers: redactResponseHeaders(headersToRecord(res.headers)),
         ...envelope,
       }),
       streamed: envelope.streamed,

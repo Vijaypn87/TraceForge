@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+// cross-spawn resolves PATHEXT shims (npx.cmd, tsx.cmd, …) and quotes
+// arguments safely on Windows; node's spawnSync without a shell cannot run them.
+import crossSpawn from "cross-spawn";
 import { createInterface, type Interface } from "node:readline";
 import { Command } from "commander";
 import { diffRuns, eventWhat } from "./diff.js";
@@ -230,7 +232,7 @@ program
 function spawnWithEnv(rawCmd: string[], env: Record<string, string>): never {
   const cmd = rawCmd[0] === "--" ? rawCmd.slice(1) : rawCmd;
   if (cmd.length === 0) fail(new Error("no command given — usage: traceforge <record|replay> [run] -- <cmd...>"));
-  const result = spawnSync(cmd[0]!, cmd.slice(1), {
+  const result = crossSpawn.sync(cmd[0]!, cmd.slice(1), {
     stdio: "inherit",
     env: { ...process.env, ...env },
   });
